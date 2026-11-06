@@ -1,56 +1,28 @@
-import React, { useState, useEffect } from 'react'
-import PostItem from '../components/PostItem'
-import Loader from '../components/Loader'
 import { useParams } from 'react-router-dom'
-import axios from 'axios'
+import PostGrid from '../components/PostGrid'
+import usePosts from '../lib/usePosts'
+import { CATEGORY_DESCRIPTIONS, POST_CATEGORIES, categoryPath } from '../lib/constants'
+import { useSeo } from '../lib/seo'
 
-const CategoryPosts = () => {
-
-    const [posts, setPosts] = useState([])
-    const [isLoading, setIsLoading] = useState(false)
-
-    const {category} = useParams()
-
-    useEffect(() => {
-      const fetchPosts = async () => {
-        setIsLoading(true);
-
-        const start = Date.now();
-
-        try {
-          const response = await axios.get(`${process.env.REACT_APP_BASE_URL}/posts/categories/${category}`);
-          setPosts(response?.data);
-        } catch (err) {
-          console.log(err);
-        }
-
-        const end = Date.now();
-        const timeElapsed = end - start;
-
-        const delay = Math.max(1500 - timeElapsed, 0);
-
-        setTimeout(() => {
-          setIsLoading(false);
-        }, delay);
-
-      };
-      fetchPosts();
-      
-    }, [category]);
-
-    if (isLoading) {
-      return <Loader />;
-    }
-
+export default function CategoryPosts() {
+  const { category } = useParams()
+  const { posts, loading, error, retry } = usePosts(`/posts/categories/${encodeURIComponent(category)}`)
+  const known = POST_CATEGORIES.includes(category)
+  const about = CATEGORY_DESCRIPTIONS[category]
+  useSeo({ title: `${category} stories`, description: about, path: categoryPath(category), noindex: !known })
   return (
-    <section className='posts'>
-       {posts.length > 0 ? <div className="container posts__container">
-            {
-                posts.map(({_id: id, thumbnail, category, title, description, creator, createdAt}) => <PostItem key={id} postID={id} thumbnail={thumbnail} category={category} title={title} description={description} authorID={creator} createdAt={createdAt} />)
-            }
-        </div> : <h2 className='center'>No posts founds</h2>}
+    <section className="container">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">Category</span>
+          <h1>{category}</h1>
+          {about && <p>{about}</p>}
+          <p className="muted" style={{ fontSize: 'var(--fs-sm)' }}>
+            {loading ? 'Loading…' : `${posts.length} ${posts.length === 1 ? 'story' : 'stories'} in this collection.`}
+          </p>
+        </div>
+      </div>
+      <PostGrid posts={posts} loading={loading} error={error} onRetry={retry} empty={{ title: `No ${category} stories yet`, message: 'Check back soon, or browse everything else.', action: 'Explore all stories', to: '/' }} />
     </section>
   )
 }
-
-export default CategoryPosts

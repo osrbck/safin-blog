@@ -1,177 +1,99 @@
-const Post = require('../models/postModel')
-const User = require('../models/userModel')
-const fs = require('fs')
-const path = require('path')
-const {v4: uuid} = require('uuid')
-const HttpError = require("../models/errorModel")
+const Post = require('../models/postModel');
+const HttpError = require('../utils/httpError');
+const { saveImage, removeImage } = require('../utils/upload');
+const { POST_CATEGORIES, LIMITS } = require('../utils/constants');
 
+const CREATOR_FIELDS = 'name avatar';
+const MIN_DESCRIPTION = 12;
 
-// ========================== CREATE A POST
-// POST : api/posts
-// PROTECTED
-const createPost = async (req, res, next) => {
-    try {
-        let {title, category, description} = req.body;
-        if(!title || !category || !description || !req.files){
-            return next(new HttpError("Fill in all fields and choose thumbnail.", 422));
-        }
+// Editors emit non-breaking spaces for trailing spaces; lone ones are turned back into
+// regular spaces so stored paragraphs wrap normally. Runs of them (deliberate spacing) are kept.
+const normalizeSpaces = (html) => html.replace(/(?:&nbsp;|\u00a0)(?=[^\s&])/g, ' ');
 
-        const {thumbnail} = req.files;
-        if(thumbnail.size > 2000000){
-            return next(new HttpError("Thumbnail too big. File should be less than 2mb.", 422));
-        }
+const validateBody = ({ title, category, description }) => {
+  const cleanTitle = String(title ?? '').trim();
+  const cleanDescription = normalizeSpaces(String(description ?? '')).trim();
+  if (!cleanTitle || !category || !cleanDescription) throw new HttpError('Please fill in all fields.', 422);
+  if (!POST_CATEGORIES.includes(category)) throw new HttpError('Please choose a valid category.', 422);
+  if (cleanDescription.replace(/<[^>]*>/g, '').trim().length < MIN_DESCRIPTION) {
+    throw new HttpError(`Content should be at least ${MIN_DESCRIPTION} characters.`, 422);
+  }
+  return { title: cleanTitle, category, description: cleanDescription };
+};
 
-        let fileName;
-        fileName = thumbnail.name;
-        let splittedFileName = fileName.split('.')
-        let newFileName = splittedFileName[0] + uuid() + "." + splittedFileName[splittedFileName.length -1]
-        thumbnail.mv(path.join(__dirname, '..', '/uploads', newFileName), async (err) => {
-            if(err){
-                return next(new HttpError(error));
-            } else{
-                const newPost = await Post.create({title, category, description, thumbnail : newFileName, creator: req.user.id})
-                if(!newPost){
-                    return next(new HttpError("Post could not be created.", 422));
-                }
+const listPosts = (filter = {}) =>
+  Post.find(filter).sort({ createdAt: -1 }).populate('creator', CREATOR_FIELDS);
 
-                const currentUser = await User.findById(req.user.id);
-                const userPostCount = currentUser.posts + 1;
-                await User.findByIdAndUpdate(req.user.id, {posts: userPostCount});
+// POST /api/posts  (multipart: title, category, description, thumbnail)
+const createPost = async (req, res) => {
+  const fields = validateBody(req.body ?? {});
+  if (!req.files?.thumbnail) throw new HttpError('Please choose a cover image.', 422);
 
-                res.status(201).json(newPost);
-            }
-        })
-    } catch (error) {
-        return next(new HttpError(error));
-    }
-}
+  const thumbnail = await saveImage(req.files.thumbnail, LIMITS.thumbnailBytes, 'Cover image');
+  try {
+    const post = await Post.create({ ...fields, thumbnail, creator: req.user.id });
+    res.status(201).json(await post.populate('creator', CREATOR_FIELDS));
+  } catch (error) {
+    await removeImage(thumbnail);
+    throw error;
+  }
+};
 
-// ========================== GET All POST
-// GET : api/posts
-// PROTECTED
-const getPosts = async (req, res, next) => {
-    try {
-        const posts = await Post.find().sort({updatedAt: -1})
-        res.status(200).json(posts)
-    } catch (error) {
-        return next(new HttpError(error));
-    }
-}
+// GET /api/posts
+const getPosts = async (req, res) => {
+  res.json(await listPosts());
+};
 
-// ========================== GET SINGLE POST
-// GET : api/posts/:id
-// PROTECTED
+// GET /api/posts/:id
 const getPost = async (req, res, next) => {
-    try {
-        const postID = req.params.id;
-        const post = await Post.findById(postID);
-        if(!post)
-            return next(new HttpError("Post not found.", 404));
-        res.status(200).json(post);
-    } catch (error) {
-        return next(new HttpError(error));
-    }
-}
+  const post = await Post.findById(req.params.id).populate('creator', CREATOR_FIELDS);
+  if (!post) return next(new HttpError('Post not found.', 404));
+  res.json(post);
+};
 
-// ========================== GET POSTS BY CATEGORY
-// GET : api/posts/categories/:category
-// UNPROTECTED
-const getCatPosts = async (req, res, next) => {
-    try {
-        const {category} = req.params;
-        const catPosts = await Post.find({category}).sort({createdAt: -1})
-        res.status(200).json(catPosts)
-    } catch (error) {
-        return next(new HttpError(error));
-    }
-}
+// GET /api/posts/categories/:category
+const getCatPosts = async (req, res) => {
+  res.json(await listPosts({ category: req.params.category }));
+};
 
-// ========================== GET AUTHOR'S POSTS
-// GET : api/posts/users/:id
-// UNPROTECTED
-const getUserPosts = async (req, res, next) => {
-    try {
-        const {id} = req.params;
-        const posts = await Post.find({creator: id}).sort({createdAt: -1});
-        res.status(200).json(posts);
-    } catch (error) {
-        return next(new HttpError(error));
-    }
-}
+// GET /api/posts/users/:id
+const getUserPosts = async (req, res) => {
+  res.json(await listPosts({ creator: req.params.id }));
+};
 
-// ========================== EDIT POST
-// PATCH : api/posts/:id
-// PROTECTED
+// PATCH /api/posts/:id  (multipart; thumbnail optional)
 const editPost = async (req, res, next) => {
-    try {
-        let fileName;
-        let newFileName;
-        let updatedPost;
-        const postID = req.params.id;
-        let {title, category, description} = req.body;
+  const post = await Post.findById(req.params.id);
+  if (!post) return next(new HttpError('Post not found.', 404));
+  if (String(post.creator) !== req.user.id) return next(new HttpError('You can only edit your own posts.', 403));
 
-        if (!title || !category|| description.length < 12)
-            return next(new HttpError("Fill in all fields.")); 
-        if(!req.files)
-            updatedPost = await Post.findByIdAndUpdate(postID, {title, category, description}, {new: true})
-        else {
-            //get old post from db
-            const oldPost = await Post.findById(postID);
-            // delete old thumbnail from upload
-            fs.unlink(path.join(__dirname, '..', 'uploads', oldPost.thumbnail), async (err) =>{
-                if(err) return next(new HttpError(err));
-            });
-             
-            //upload new thumbnail
-            const {thumbnail} = req.files;
-            if(thumbnail.size > 2000000) return next(new HttpError("Thumbnail too big. Should be less than 2mb."));
-            fileName = thumbnail.name;
-            let splittedFileName = fileName.split('.')
-            newFileName = splittedFileName[0] + uuid() + "." + splittedFileName[splittedFileName.length -1]
-            thumbnail.mv(path.join(__dirname, '..', 'uploads', newFileName), async (err) =>{
-                if(err) return next(new HttpError(err));
-            });
-            updatedPost = await Post.findByIdAndUpdate(postID, {title,category,description, thumbnail:newFileName}, {new:true})
-        }
+  Object.assign(post, validateBody(req.body ?? {}));
 
-        if(!updatedPost) return next(new HttpError("Couldn't update post.", 400));
+  const oldThumbnail = post.thumbnail;
+  if (req.files?.thumbnail) {
+    post.thumbnail = await saveImage(req.files.thumbnail, LIMITS.thumbnailBytes, 'Cover image');
+  }
 
-        res.status(200).json(updatedPost);
+  try {
+    await post.save();
+  } catch (error) {
+    if (post.thumbnail !== oldThumbnail) await removeImage(post.thumbnail);
+    throw error;
+  }
+  if (post.thumbnail !== oldThumbnail) await removeImage(oldThumbnail);
 
-    } catch (error) {
-        return next(new HttpError(error));
-    }
-}
+  res.json(await post.populate('creator', CREATOR_FIELDS));
+};
 
-// ========================== DELETE POST
-// DELETE : api/posts/delete/:id
-// PROTECTED
+// DELETE /api/posts/:id
 const deletePost = async (req, res, next) => {
-    try {
-        const postID = req.params.id
-        if(!postID) return next(new HttpError("Post unavailable.", 400));
+  const post = await Post.findById(req.params.id);
+  if (!post) return next(new HttpError('Post not found.', 404));
+  if (String(post.creator) !== req.user.id) return next(new HttpError('You can only delete your own posts.', 403));
 
-        const post = await Post.findById(postID)
-        const fileName = post?.thumbnail
-        //delete thumbnail from uploads
-        if(req.user.id == post?.creator){
-            fs.unlink(path.join(__dirname, '..', 'uploads', fileName), async (err)=>{
-                if(err) return next(new HttpError(err));
-                else{
-                    await Post.findByIdAndDelete(postID);
-                    //find user and reduce post count by 1
-                    const currentUser = await User.findById(req.user.id)
-                    const userPostCount = currentUser?.posts -1;
-                    await User.findByIdAndUpdate(currentUser, {posts: userPostCount})
+  await post.deleteOne();
+  await removeImage(post.thumbnail);
+  res.json({ message: 'Post deleted.' });
+};
 
-                    res.json(`Post ${postID} deleted successfully.`)
-                }
-            })
-        } else return next(new HttpError("Post could not be deleted.", 403));
-
-    } catch (error) {
-        return next(new HttpError(error));
-    }
-}
-
-module.exports = {createPost, getPosts, getPost, getCatPosts, getUserPosts, editPost, deletePost}
+module.exports = { createPost, getPosts, getPost, getCatPosts, getUserPosts, editPost, deletePost };

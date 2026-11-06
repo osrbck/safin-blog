@@ -1,0 +1,23 @@
+{
+  "name": "safin",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Safin - a modern publishing platform (Express 5 + MongoDB API, Vite + React 19 client)",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix blog-client install",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm --prefix server run dev\" \"npm --prefix blog-client run dev\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix blog-client run dev",
+    "build": "npm --prefix blog-client run build",
+    "lint": "npm --prefix blog-client run lint",
+    "db:init": "npm --prefix server run db:init",
+    "db:seed": "npm --prefix server run db:seed",
+    "db:seed-posts": "npm --prefix server run db:seed-posts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

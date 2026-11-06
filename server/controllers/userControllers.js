@@ -1,220 +1,117 @@
-const bcrypt = require('bcryptjs')
-const jwt = require('jsonwebtoken')
-const fs = require('fs')
-const path = require('path')
-const {v4: uuid} = require('uuid')
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-const User = require('../models/userModel')
-const HttpError = require("../models/errorModel")
+const User = require('../models/userModel');
+const Post = require('../models/postModel');
+const HttpError = require('../utils/httpError');
+const { saveImage, removeImage } = require('../utils/upload');
+const { LIMITS } = require('../utils/constants');
+const { jwtSecret, jwtExpiresIn } = require('../config/env');
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD = 6;
 
-// ========================== REGISTER A NEW USER
-// POST : api/users/register
-// UNPROTECTED
-const registerUser = async (req, res, next) => {
-    try {
-        const {name, email, password, password2} = req.body;
-        
-        if(!name || !email || !password){
-            return next(new HttpError("Fill in all fields.", 422))
-        }
+const normalizeEmail = (email = '') => String(email).trim().toLowerCase();
 
-        const newEmail = email.toLowerCase();
+// Email is only disclosed to the account owner.
+const publicUser = (user, posts = 0, { includeEmail = false } = {}) => ({
+  _id: user._id,
+  name: user.name,
+  ...(includeEmail ? { email: user.email } : {}),
+  avatar: user.avatar ?? null,
+  posts,
+});
 
-        const emailExists = await User.findOne({email: newEmail});
+const countPosts = (creator) => Post.countDocuments({ creator });
 
-        if(emailExists){
-            return next(new HttpError("Email allready exists.", 422));
-        }
-
-        if((password.trim()).length < 6){
-            return next(new HttpError("Password should be at least 6 characters.", 422));
-        }
-
-        if(password != password2){
-            return next(new HttpError("Passwords do not match.", 422));
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        const hashedPass = await bcrypt.hash(password, salt);
-        const newUser = await User.create({name, email: newEmail, password: hashedPass})
-        res.status(201).json(`New User ${newUser.email} registered.`);
-
-
-    } catch (error) {
-        return next(new HttpError("User registration failed.", 422));
-    }
-}
-
-
-
-// ========================== LOGIN  A RESIGTERED USER
-// POST : api/users/login
-// UNPROTECTED
+// POST /api/users/login
 const loginUser = async (req, res, next) => {
-    try {
-        const {email, password} = req.body;
-        if(!email || !password){
-            return next(new HttpError("Fill in all fields.", 422))
-        }
-        const newEmail = email.toLowerCase();
+  const { email, password } = req.body ?? {};
+  const cleanEmail = normalizeEmail(email);
+  if (!cleanEmail || !password) return next(new HttpError('Please fill in all fields.', 422));
 
-        const user = await User.findOne({email: newEmail})
-        if(!user){
-            return next(new HttpError("Invalid credentials.", 422))
-        }
+  const user = await User.findOne({ email: cleanEmail }).select('+password');
+  const valid = user && (await bcrypt.compare(password, user.password));
+  if (!valid) return next(new HttpError('Invalid email or password.', 401));
 
-        const comparePass = await bcrypt.compare(password, user.password)
-        if(!comparePass){
-            return next(new HttpError("Invalid credentials.", 422))
-        }
-
-        const {_id: id, name} = user;
-        const token = jwt.sign({id, name}, process.env.JWT_SECRET, {expiresIn: "1d"})
-        res.status(200).json({token, id, name})
-
-    } catch (error) {
-        return next(new HttpError("Login failed. Please check your credentials.", 422))
-    }
-}
-
-
-// ========================== USER PROFILE
-// POST : api/users/users/:id
-// PROTECTED
-const getUser = async (req, res, next) => {
-    try {
-        const {id} = req.params;
-        const user = await User.findById(id).select('-password');
-        if (!user) {
-            return next(new HttpError("User not found.", 404))
-        }
-        res.status(200).json(user);
-    } catch (error) {
-        return next(new HttpError(error))
-    }
-}
-
-
-// ========================== CHANGE USER AVATAR
-// POST : api/users/change-avatar
-// PROTECTED
-const changeAvatar = async (req, res, next) => {
-    try {
-        if (!req.files || !req.files.avatar) {
-            return next(new HttpError("Please choose an image.", 422));
-        }
-        
-        // find user
-        const user = await User.findById(req.user.id);
-
-        //delete old avatar if exists
-        if (user.avatar) {
-            const oldAvatarPath = path.join(__dirname, '..', 'uploads', user.avatar);
-            try {
-                await fs.promises.unlink(oldAvatarPath); // Use promises to ensure it's awaited
-                console.log('Old avatar deleted successfully.');
-            } catch (err) {
-                console.log('Failed to delete old avatar:', err);
-            }
-        }
-
-        const { avatar } = req.files;
-        
-        // check file size
-        if (avatar.size > 1500000) {
-            return next(new HttpError("Profile picture is too big. Should be less than 1500kb", 422));
-        }
-
-        // Create a new unique file name
-        const fileExtension = path.extname(avatar.name); // Get the file extension
-        const newFileName = `${uuid()}${fileExtension}`;  // Create a unique file name using uuid
-
-        // Move the new avatar to the uploads directory
-        avatar.mv(path.join(__dirname, '..', 'uploads', newFileName), async (err) => {
-            if (err) {
-                return next(new HttpError(err.message, 500));
-            }
-
-            // Update user's avatar in the database with the new file name
-            const updatedAvatar = await User.findByIdAndUpdate(
-                req.user.id, 
-                { avatar: newFileName }, 
-                { new: true }
-            );
-
-            if (!updatedAvatar) {
-                return next(new HttpError("Avatar could not be changed.", 422));
-            }
-
-            res.status(200).json({ avatar: updatedAvatar.avatar });
-        });
-        
-    } catch (error) {
-        return next(new HttpError(error.message, 500));
-    }
+  const token = jwt.sign({ id: user._id, name: user.name }, jwtSecret, { expiresIn: jwtExpiresIn });
+  res.json({ token, id: user._id, name: user.name, avatar: user.avatar ?? null });
 };
 
+// GET /api/users/:id
+const getUser = async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  if (!user) return next(new HttpError('User not found.', 404));
+  const includeEmail = req.user?.id === String(user._id);
+  res.json(publicUser(user, await countPosts(user._id), { includeEmail }));
+};
 
+// GET /api/users
+const getAuthors = async (req, res) => {
+  const authors = await User.aggregate([
+    {
+      $lookup: {
+        from: 'posts',
+        let: { uid: '$_id' },
+        pipeline: [{ $match: { $expr: { $eq: ['$creator', '$$uid'] } } }, { $count: 'n' }],
+        as: 'p',
+      },
+    },
+    { $project: { name: 1, avatar: { $ifNull: ['$avatar', null] }, posts: { $ifNull: [{ $first: '$p.n' }, 0] } } },
+    { $sort: { posts: -1, name: 1 } },
+  ]);
+  res.json(authors);
+};
 
-// ========================== EDIT USER DETAILS
-// POST : api/users/edit-user
-// PROTECTED
+// POST /api/users/change-avatar  (multipart: avatar)
+const changeAvatar = async (req, res, next) => {
+  const user = await User.findById(req.user.id);
+  if (!user) return next(new HttpError('User not found.', 404));
+
+  const fileName = await saveImage(req.files?.avatar, LIMITS.avatarBytes, 'Profile picture');
+  const previous = user.avatar;
+  user.avatar = fileName;
+  try {
+    await user.save();
+  } catch (error) {
+    await removeImage(fileName);
+    throw error;
+  }
+  await removeImage(previous);
+  res.json({ avatar: user.avatar });
+};
+
+// PATCH /api/users/edit-user
 const editUser = async (req, res, next) => {
-    try {
-        const {name, email, currentPassword, newPassword, newConfirmPasword} = req.body
+  const { name, email, currentPassword, newPassword, confirmNewPassword } = req.body ?? {};
+  const cleanName = String(name ?? '').trim();
+  const cleanEmail = normalizeEmail(email);
 
-        if(!name || !email || !currentPassword || !newPassword)
-            return next(new HttpError("Fill in all fields.", 422))
-        
-        //get user from database
-        const user = await User.findById(req.user.id);
-        if(!user)
-            return next(new HttpError("User not found.", 403))
-        
+  if (!cleanName || !cleanEmail || !currentPassword) return next(new HttpError('Please fill in all fields.', 422));
+  if (!EMAIL_RE.test(cleanEmail)) return next(new HttpError('Please enter a valid email address.', 422));
 
-        //**EMAIL */
-        //make sure new email does not already exist
-        const emailExist = await User.findOne({email});
-        if(emailExist && (emailExist._id != req.user.id))
-            return next(new HttpError("Email already exist.", 422))
-        
-        //**PASSWORD */
-        //compare current password to database password
-        const validateUserPassword = await bcrypt.compare(currentPassword, user.password)
-        if(!validateUserPassword)
-            return next(new HttpError("Invalid current password.", 422))
-        //compare new passwords
-        if(newPassword != newConfirmPasword)
-            return next(new HttpError("New password does not match.", 422))
-        //hash new password
-        const salt = await bcrypt.genSalt(10)
-        const hashed = await bcrypt.hash(newPassword, salt)
+  const user = await User.findById(req.user.id).select('+password');
+  if (!user) return next(new HttpError('User not found.', 404));
 
-        //**USER INFO */
-        const newInfo = await User.findByIdAndUpdate(req.user.id, {name, email, password: hashed}, {new: true})
-        
-        res.status(200).json(newInfo)
+  if (!(await bcrypt.compare(currentPassword, user.password))) {
+    return next(new HttpError('Current password is incorrect.', 422));
+  }
 
-    } catch (error) {
-        return next(new HttpError(error))
+  const taken = await User.exists({ email: cleanEmail, _id: { $ne: user._id } });
+  if (taken) return next(new HttpError('That email is already registered.', 409));
+
+  if (newPassword) {
+    if (String(newPassword).trim().length < MIN_PASSWORD) {
+      return next(new HttpError(`New password should be at least ${MIN_PASSWORD} characters.`, 422));
     }
-}
+    if (newPassword !== confirmNewPassword) return next(new HttpError('New passwords do not match.', 422));
+    user.password = await bcrypt.hash(newPassword, 10);
+  }
 
+  user.name = cleanName;
+  user.email = cleanEmail;
+  await user.save();
+  res.json(publicUser(user, await countPosts(user._id), { includeEmail: true }));
+};
 
-
-// ========================== GET AUTHORS (USERS)
-// POST : api/users/authors
-// UNPROTECTED
-const getAuthors = async (req, res, next) => {
-    try {
-        const authors = await User.find().select('-password');
-        res.json(authors);
-    } catch (error) {
-        return next(new HttpError(error)) 
-    }
-}
-
-
-
-module.exports = {registerUser, loginUser, getUser, changeAvatar, editUser, getAuthors}
+module.exports = { loginUser, getUser, getAuthors, changeAvatar, editUser };

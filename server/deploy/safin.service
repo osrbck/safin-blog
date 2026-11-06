@@ -1,0 +1,24 @@
+# /etc/systemd/system/safin.service
+[Unit]
+Description=Safin Blog API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/safin-backend
+EnvironmentFile=/home/ubuntu/safin-backend/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=15
+# Keep a runaway process from starving the other apps on this small instance
+MemoryMax=300M
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=safin
+
+[Install]
+WantedBy=multi-user.target

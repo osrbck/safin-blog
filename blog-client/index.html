@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Safin · Stories worth growing into</title>
+    <meta name="description" content="Safin is a calm publishing space for curious readers: long-form stories on houseplants, poisonous plants, flower legends, art and investing." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="%SITE_URL%/" />
+
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#2f7a5b" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c0f12" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+
+    <meta property="og:site_name" content="Safin" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Safin · Stories worth growing into" />
+    <meta property="og:description" content="Safin is a calm publishing space for curious readers: long-form stories on houseplants, poisonous plants, flower legends, art and investing." />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:image" content="%SITE_URL%/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Safin" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Safin · Stories worth growing into" />
+    <meta name="twitter:description" content="Long-form stories on houseplants, poisonous plants, flower legends, art and investing." />
+    <meta name="twitter:image" content="%SITE_URL%/og-image.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "%SITE_URL%/#website",
+            "url": "%SITE_URL%/",
+            "name": "Safin",
+            "description": "Stories worth growing into: houseplants, poisonous plants, flower legends, art and investing.",
+            "inLanguage": "en",
+            "publisher": { "@id": "%SITE_URL%/#org" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "%SITE_URL%/#org",
+            "name": "Safin",
+            "url": "%SITE_URL%/",
+            "logo": { "@type": "ImageObject", "url": "%SITE_URL%/icon-512.png", "width": 512, "height": 512 }
+          }
+        ]
+      }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      try {
+        var t = localStorage.getItem('safin-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <p style="font-family: system-ui, sans-serif; padding: 24px">Safin needs JavaScript to show its stories. Please enable it and reload the page.</p>
+    </noscript>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,82 @@
+[
+  {
+    "slug": "oleander",
+    "title": "Oleander: The Beautiful Hedge That Hides a Heart Poison",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "oleander.html",
+    "cover": "covers/oleander.jpg"
+  },
+  {
+    "slug": "foxglove",
+    "title": "Foxglove: The Cottage-Garden Flower That Gave Medicine a Heart Drug",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "foxglove.html",
+    "cover": "covers/foxglove.jpg"
+  },
+  {
+    "slug": "deadly-nightshade",
+    "title": "Deadly Nightshade: The Sweet Black Berry Behind Belladonna's Dark Legend",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "deadly-nightshade.html",
+    "cover": "covers/deadly-nightshade.jpg"
+  },
+  {
+    "slug": "lily-of-the-valley",
+    "title": "Lily of the Valley: Wedding-Bouquet Charm, Wild-Garlic Impostor",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "lily-of-the-valley.html",
+    "cover": "covers/lily-of-the-valley.jpg"
+  },
+  {
+    "slug": "dieffenbachia",
+    "title": "Dieffenbachia: Why the 'Dumb Cane' Houseplant Bites Back",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "dieffenbachia.html",
+    "cover": "covers/dieffenbachia.jpg"
+  },
+  {
+    "slug": "castor-bean",
+    "title": "Castor Bean: The Showy Garden Giant Whose Seeds Hold Ricin",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "castor-bean.html",
+    "cover": "covers/castor-bean.jpg"
+  },
+  {
+    "slug": "water-hemlock",
+    "title": "Water Hemlock: The Wild 'Parsnip' Among North America's Deadliest Plants",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "water-hemlock.html",
+    "cover": "covers/water-hemlock.jpg"
+  },
+  {
+    "slug": "monkshood",
+    "title": "Monkshood: The Blue 'Queen of Poisons' Growing in Our Borders",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "monkshood.html",
+    "cover": "covers/monkshood.jpg"
+  },
+  {
+    "slug": "yew",
+    "title": "English Yew: The Ancient Churchyard Tree With a Poisonous Heart",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "yew.html",
+    "cover": "covers/yew.jpg"
+  },
+  {
+    "slug": "giant-hogweed",
+    "title": "Giant Hogweed: The Towering Weed Whose Sap Turns Sunlight Into Burns",
+    "category": "Poisonous Plants",
+    "author": "safin@safin.com",
+    "file": "giant-hogweed.html",
+    "cover": "covers/giant-hogweed.jpg"
+  }
+]

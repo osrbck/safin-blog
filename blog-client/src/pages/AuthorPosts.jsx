@@ -1,56 +1,42 @@
-import React, { useState, useEffect } from 'react'
-import PostItem from '../components/PostItem'
-import Loader from '../components/Loader'
 import { useParams } from 'react-router-dom'
-import axios from 'axios'
+import PostGrid from '../components/PostGrid'
+import Avatar from '../components/Avatar'
+import usePosts from '../lib/usePosts'
+import useFetch from '../lib/useFetch'
+import { SITE_URL, absoluteUrl, useSeo } from '../lib/seo'
+import { assetUrl } from '../lib/constants'
 
-const AuthorPosts = () => {
+export default function AuthorPosts() {
+  const { id } = useParams()
+  const { posts, loading, error, retry } = usePosts(`/posts/users/${id}`)
+  const { data: author } = useFetch(`/users/${id}`)
 
-    const [posts, setPosts] = useState([])
-    const [isLoading, setIsLoading] = useState(false)
-
-    const {id} = useParams()
-
-    useEffect(() => {
-      const fetchPosts = async () => {
-        setIsLoading(true);
-
-        const start = Date.now();
-
-        try {
-          const response = await axios.get(`${process.env.REACT_APP_BASE_URL}/posts/users/${id}`);
-          setPosts(response?.data);
-        } catch (err) {
-          console.log(err);
-        }
-
-        const end = Date.now();
-        const timeElapsed = end - start;
-
-        const delay = Math.max(1500 - timeElapsed, 0);
-
-        setTimeout(() => {
-          setIsLoading(false);
-        }, delay);
-
-      };
-      fetchPosts();
-      
-    }, [id]);
-
-    if (isLoading) {
-      return <Loader />;
-    }
+  const name = author?.name ?? posts[0]?.creator?.name ?? 'Author'
+  const avatar = author?.avatar ?? posts[0]?.creator?.avatar
+  useSeo({
+    title: author?.name ? `Stories by ${author.name}` : 'Author',
+    description: author?.name ? `Read every story ${author.name} has published on Safin.` : undefined,
+    image: avatar ? absoluteUrl(assetUrl(avatar)) : undefined,
+    path: `/posts/users/${id}`,
+    type: 'profile',
+    jsonLd: author?.name
+      ? { '@context': 'https://schema.org', '@type': 'ProfilePage', mainEntity: { '@type': 'Person', name: author.name, url: `${SITE_URL}/posts/users/${id}` } }
+      : undefined,
+  })
 
   return (
-    <section className='posts'>
-       {posts.length > 0 ? <div className="container posts__container">
-            {
-                posts.map(({_id: id, thumbnail, category, title, description, creator, createdAt}) => <PostItem key={id} postID={id} thumbnail={thumbnail} category={category} title={title} description={description} authorID={creator} createdAt={createdAt} />)
-            }
-        </div> : <h2 className='center'>No posts founds</h2>}
+    <section className="container">
+      <div className="author-hero">
+        <Avatar name={name} src={avatar} size="lg" />
+        <div>
+          <span className="eyebrow">Author</span>
+          <h1 style={{ fontSize: 'var(--fs-2xl)' }}>{name}</h1>
+          <p className="muted" style={{ fontSize: 'var(--fs-sm)' }}>
+            {loading ? 'Loading…' : `${posts.length} published ${posts.length === 1 ? 'story' : 'stories'}`}
+          </p>
+        </div>
+      </div>
+      <PostGrid posts={posts} loading={loading} error={error} onRetry={retry} empty={{ title: 'No stories yet', message: `${name} hasn't published anything yet.`, action: 'Explore all stories', to: '/' }} />
     </section>
   )
 }
-
-export default AuthorPosts

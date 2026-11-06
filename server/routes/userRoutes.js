@@ -1,16 +1,26 @@
-const {Router} = require('express')
+const { Router } = require('express');
+const rateLimit = require('express-rate-limit');
 
-const {registerUser, loginUser, getUser, changeAvatar, editUser, getAuthors} = require("../controllers/userControllers")
+const auth = require('../middleware/authMiddleware');
+const { optionalAuth } = auth;
+const {
+  loginUser, getUser, getAuthors, changeAvatar, editUser,
+} = require('../controllers/userControllers');
 
-const authMiddleware = require('../middleware/authMiddleware')
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: 'Too many attempts. Please try again in a few minutes.' },
+});
 
-const router = Router()
+const router = Router();
 
-router.post('/register', registerUser)
-router.post('/login', loginUser)
-router.get('/:id', getUser)
-router.get('/', getAuthors)
-router.post('/change-avatar', authMiddleware, changeAvatar)
-router.patch('/edit-user', authMiddleware, editUser)
+router.post('/login', authLimiter, loginUser);
+router.get('/', getAuthors);
+router.post('/change-avatar', auth, changeAvatar);
+router.patch('/edit-user', auth, editUser);
+router.get('/:id', optionalAuth, getUser);
 
-module.exports = router
+module.exports = router;

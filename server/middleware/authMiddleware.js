@@ -1,19 +1,37 @@
-const jwt = require ( 'jsonwebtoken')
-const HttpError = require('../models/errorModel')
+const jwt = require('jsonwebtoken');
+const HttpError = require('../utils/httpError');
+const { jwtSecret } = require('../config/env');
 
-const authMiddleware = async (req, res, next) =>{
-    const Authorization = req.headers.Authorization || req.headers.authorization;
+const authMiddleware = (req, res, next) => {
+  const header = req.headers.authorization || '';
+  const [scheme, token] = header.split(' ');
 
-    if (Authorization && Authorization.startsWith("Bearer")) {
-        const token = Authorization.split(' ')[1]
-        jwt.verify(token, process.env.JWT_SECRET, (err, info) =>{
-            if (err) {
-                return next(new HttpError("Unauthorized. Invalid token.", 403));
-            }
-            req.user = info;
-            next()
-        })
-    } else return next(new HttpError("Unauthorized. No token", 402));
-}
+  if (scheme !== 'Bearer' || !token) {
+    return next(new HttpError('Unauthorized. Please sign in.', 401));
+  }
 
-module.exports = authMiddleware
+  try {
+    const payload = jwt.verify(token, jwtSecret);
+    req.user = { id: payload.id, name: payload.name };
+    next();
+  } catch {
+    next(new HttpError('Your session has expired. Please sign in again.', 401));
+  }
+};
+
+/** Populates req.user when a valid token is present but never rejects the request. */
+const optionalAuth = (req, res, next) => {
+  const [scheme, token] = (req.headers.authorization || '').split(' ');
+  if (scheme === 'Bearer' && token) {
+    try {
+      const payload = jwt.verify(token, jwtSecret);
+      req.user = { id: payload.id, name: payload.name };
+    } catch {
+      /* treat as anonymous */
+    }
+  }
+  next();
+};
+
+module.exports = authMiddleware;
+module.exports.optionalAuth = optionalAuth;
